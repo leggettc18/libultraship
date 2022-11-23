@@ -90,17 +90,36 @@ void Window::CreateDefaults() {
 }
 
 void Window::Initialize(const std::vector<std::string>& otrFiles, const std::unordered_set<uint32_t>& validHashes) {
+    InitializeConsoleVariables();
     InitializeLogging();
     InitializeConfiguration();
     InitializeResourceManager(otrFiles, validHashes);
     CreateDefaults();
     InitializeControlDeck();
 
-    mIsFullscreen = GetConfig()->getBool("Window.Fullscreen.Enabled", false);
+    bool steamDeckGameMode = false;
+
+#ifdef __linux__
+    std::ifstream osReleaseFile("/etc/os-release");
+    if (osReleaseFile.is_open()) {
+        std::string line;
+        while (std::getline(osReleaseFile, line)) {
+            if (line.find("VARIANT_ID") != std::string::npos) {
+                if (line.find("steamdeck") != std::string::npos) {
+                    steamDeckGameMode = std::getenv("XDG_CURRENT_DESKTOP") != nullptr &&
+                                        std::string(std::getenv("XDG_CURRENT_DESKTOP")) == "gamescope";
+                }
+                break;
+            }
+        }
+    }
+#endif
+
+    mIsFullscreen = GetConfig()->getBool("Window.Fullscreen.Enabled", false) || steamDeckGameMode;
 
     if (mIsFullscreen) {
-        mWidth = GetConfig()->getInt("Window.Fullscreen.Width", 1920);
-        mHeight = GetConfig()->getInt("Window.Fullscreen.Height", 1080);
+        mWidth = GetConfig()->getInt("Window.Fullscreen.Width", steamDeckGameMode ? 1280 : 1920);
+        mHeight = GetConfig()->getInt("Window.Fullscreen.Height", steamDeckGameMode ? 800 : 1080);
     } else {
         mWidth = GetConfig()->getInt("Window.Width", 640);
         mHeight = GetConfig()->getInt("Window.Height", 480);
@@ -330,6 +349,10 @@ void Window::InitializeControlDeck() {
     mControlDeck = std::make_shared<ControlDeck>();
 }
 
+void Window::InitializeConsoleVariables() {
+    mConsoleVariables = std::make_shared<ConsoleVariable>();
+}
+
 void Window::InitializeLogging() {
     try {
         // Setup Logging
@@ -495,6 +518,10 @@ int32_t Window::GetLastScancode() {
 
 void Window::SetLastScancode(int32_t scanCode) {
     mLastScancode = scanCode;
+}
+
+std::shared_ptr<ConsoleVariable> Window::GetConsoleVariables() {
+    return mConsoleVariables;
 }
 
 } // namespace Ship
